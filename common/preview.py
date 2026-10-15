@@ -1,21 +1,30 @@
-"""Renders approximate previews of every page to dist/previews/*.png (annunciators shown lit)."""
+"""Renders approximate previews of every page (annunciators shown lit).
+
+    python3 common/preview.py pmdg737 [<PilotsDeck>/Plugin]   -> dist/previews/pmdg737/*.png
+"""
+import importlib.util
 import os
 import sys
 
 from PIL import Image, ImageDraw, ImageFont
 
-import build
 import images
 
-PD_IMAGES = sys.argv[1] if len(sys.argv) > 1 else None   # path to PilotsDeck Plugin folder (optional)
-OUT = os.path.join(build.DIST, "previews")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+AIRCRAFT = sys.argv[1]
+PD_IMAGES = sys.argv[2] if len(sys.argv) > 2 else None   # path to PilotsDeck Plugin folder (optional)
+_spec = importlib.util.spec_from_file_location("build", os.path.join(ROOT, AIRCRAFT, "build.py"))
+build = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(build)
+OUT = os.path.join(build.DIST, "previews", AIRCRAFT)
+IMG_DIR = build.A.strip("/").split("/")[-1]
 K, GAP = 96, 8
 FB = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 FM = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf"
 
 
 def load(path, gen_dir):
-    if path.startswith("Images/pmdg737/"):
+    if path.startswith(f"Images/{IMG_DIR}/"):
         p = os.path.join(gen_dir, os.path.basename(path))
     elif PD_IMAGES:
         p = os.path.join(PD_IMAGES, path)
@@ -93,7 +102,7 @@ def render_key(a, page_imgs, gen_dir):
 
 
 def main():
-    gen_dir = os.path.join(build.DIST, "_gen")
+    gen_dir = os.path.join(build.DIST, "_gen_" + AIRCRAFT)
     images.write_annunciators(gen_dir)
     main_page, pages = build.build_pages()
     os.makedirs(OUT, exist_ok=True)

@@ -55,11 +55,17 @@ BASE_SETTINGS = {
 }
 
 _counter = [0]
+_prefix = [""]
+
+
+def set_id_prefix(prefix):
+    """Namespace for generated ActionIDs, so two profiles never share an ID."""
+    _prefix[0] = prefix
 
 
 def _uid(*parts):
     _counter[0] += 1
-    return str(uuid.uuid5(NS, "/".join(str(p) for p in parts) + f"#{_counter[0]}"))
+    return str(uuid.uuid5(NS, _prefix[0] + "/".join(str(p) for p in parts) + f"#{_counter[0]}"))
 
 
 def _state(title, align="middle", size=11, style="Bold", color="#ffffff", image=None, show=True):

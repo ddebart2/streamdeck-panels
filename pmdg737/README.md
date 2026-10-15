@@ -7,7 +7,7 @@ PilotsDeck for the Stream Deck side and the MobiFlight WASM module for reading a
 PMDG switches. FSUIPC is not needed.
 
 Download: [`dist/PMDG 737 XL.ppp`](../dist/PMDG%20737%20XL.ppp). Previews of every page are in
-[`dist/previews`](../dist/previews).
+[`dist/previews/pmdg737`](../dist/previews/pmdg737).
 
 ## Requirements
 
@@ -94,9 +94,11 @@ PilotsDeck property inspector. Or change it in `build.py` and rebuild.
 ## Rebuilding
 
 ```
-pip install pillow
+pip install pillow lupa
 python3 pmdg737/build.py      # -> dist/PMDG 737 XL.ppp and dist/PMDG 737 XL.streamDeckProfile
-python3 pmdg737/preview.py <path-to-PilotsDeck>/Plugin   # optional: dist/previews/*.png
+python3 common/preview.py pmdg737 <path-to-PilotsDeck>/Plugin   # optional: dist/previews/pmdg737/*.png
+python3 tests/test_profiles.py && python3 tests/test_lua_pmdg737.py
 ```
 
-`pmdg.py` has the PMDG ID/RPN helpers, `sd.py` the PilotsDeck action builders, `build.py` the page layouts.
+`build.py` has this aircraft's page layouts. Shared code is in `common/`: `pmdg.py` (PMDG ID/RPN helpers),
+`sd.py` (PilotsDeck action builders), `builder.py` (pages and packaging), `images.py`, `preview.py`.

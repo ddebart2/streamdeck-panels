@@ -1,0 +1,10 @@
+{
+  "packageformat": 1,
+  "title": "PMDG 777 (MSFS) - Stream Deck XL",
+  "versionpackage": "0.1",
+  "aircraft": "PMDG 777-200ER/-300ER/F (MSFS 2020/2024)",
+  "author": "ddebart2",
+  "url": "https://github.com/ddebart2/streamdeck-panels",
+  "notes": "=> Requires: PMDG 777 for MSFS, PilotsDeck 0.9.1+ and the MobiFlight WASM Module (installed by the PilotsDeck Installer).\r\n=> Install to your Stream Deck XL when the Profile Manager asks.\r\n=> EARLY VERSION: button commands follow PMDG's documented event IDs, but switch-position readouts and MCP windows are unverified. No annunciator lights are shown. See the README.\r\n=> Camera keys on the main page use vJoy device 1, buttons 1-12 (vJoy driver required).\r\n=> Map the profile to the aircraft string 'PMDG 777' in the Profile Manager for automatic switching.\r\n=> GSX folder uses the GSX.lua global script by Fragtality (included).",
+  "versionplugin": "0.9.1"
+}

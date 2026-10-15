@@ -5,65 +5,32 @@
 Layout is modeled after Fragtality's Fenix A320 PilotsDeck profile: a main page with
 camera views, flight-phase pages (Gate/Taxi/Flight/Cruise) and system folders.
 """
-import io
 import json
 import os
 import random
-import shutil
-import uuid
-import zipfile
-
-import images
-import sd
-from pmdg import click, custom_event, goto, lvar, rb, toggle
-from sd import CALC, KVAR, LUA
+import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
+sys.path.insert(0, os.path.join(os.path.dirname(HERE), "common"))
+
+import builder  # noqa: E402
+import sd  # noqa: E402
+from pmdg import Pmdg  # noqa: E402
+from sd import CALC, KVAR, LUA  # noqa: E402,F401
+
 PKG_SRC = os.path.join(HERE, "package")
-DIST = os.path.join(ROOT, "dist")
+DIST = builder.DIST
 
 PROFILE_NAME = "PMDG 737 XL"
 PACKAGE_NAME = "PMDG 737 XL.ppp"
-XL_MODEL = "20GAT9901"
 A = "Images/pmdg737/"   # annunciator images shipped with the package
 
 random.seed(737)
 
-
-# --------------------------------------------------------------------------------------------
-# RPN helpers built on pmdg.py
-# --------------------------------------------------------------------------------------------
-def L(sid):
-    return f"({lvar(sid)}, number)"
-
-
-def goto_rpn(sid, target_rpn, step, inc, dec):
-    """Like pmdg.goto but the target is computed by RPN at runtime."""
-    return (f"{target_rpn} {L(sid)} - {step} div near s0 "
-            f":1 l0 0 > if{{ {rb(sid, inc)} l0 -- s0 g1 }} "
-            f"l0 0 < if{{ {rb(sid, dec)} l0 ++ s0 g1 }}")
-
-
-def cycle(sid, step, maxval, inc, dec, minval=0):
-    """Next position, wrapping from the last back to the first."""
-    tgt = f"{L(sid)} {maxval - step / 2:g} < if{{ {L(sid)} {step} + near }} els{{ {minval} }}"
-    return goto_rpn(sid, tgt, step, inc, dec)
-
-
-def step_down(sid, step, minval, inc, dec):
-    tgt = f"{L(sid)} {minval + step / 2:g} > if{{ {L(sid)} {step} - near }} els{{ {minval} }}"
-    return goto_rpn(sid, tgt, step, inc, dec)
-
-
-def toggle_between(sid, a, b, step, inc, dec):
-    """Go to b when the switch is at a, otherwise go to a."""
-    tgt = f"{L(sid)} near {a} == if{{ {b} }} els{{ {a} }}"
-    return goto_rpn(sid, tgt, step, inc, dec)
-
-
-def times(code, n):
-    return " ".join([code] * n)
+P = Pmdg("73X")
+lvar, L, rb, click, toggle, times = P.lvar, P.L, P.rb, P.click, P.toggle, P.times
+goto_rpn, cycle, step_down, toggle_between = P.goto_rpn, P.cycle, P.step_down, P.toggle_between
+custom_event = P.custom_event
 
 
 # --------------------------------------------------------------------------------------------
@@ -336,36 +303,7 @@ def turnoff_all():
 # --------------------------------------------------------------------------------------------
 # Pages
 # --------------------------------------------------------------------------------------------
-class Page:
-    def __init__(self, name, parent=None):
-        self.name = name
-        self.id = str(uuid.uuid5(sd.NS, "page/" + name))
-        self.actions = {}
-        self.images = {}
-        if parent is not None:
-            self.actions["0,0"] = sd.back()
-
-    def put(self, col, row, action):
-        key = f"{col},{row}"
-        assert key not in self.actions, f"{self.name}: {key} used twice"
-        assert 0 <= col < 8 and 0 <= row < 4, f"{self.name}: {key} out of XL range"
-        self.actions[key] = action
-
-    def link(self, col, row, title, child, kind="folder"):
-        img = images.sd_image_name()
-        self.images[img] = images.folder_icon(kind)
-        self.put(col, row, sd.folder(title, child.id, "Images/" + img, size=12))
-
-    def grid(self, rows):
-        """rows: list of 4 lists with up to 8 entries (None = empty, 'back' slot skipped)."""
-        for r, row in enumerate(rows):
-            for c, action in enumerate(row):
-                if action is not None and action != "back":
-                    self.put(c, r, action)
-
-    def manifest(self):
-        return {"Controllers": [{"Actions": self.actions or None, "Type": "Keypad"}],
-                "Icon": "", "Name": ""}
+Page = builder.Page
 
 
 def build_pages():
@@ -645,62 +583,9 @@ def build_pages():
     return main, pages
 
 
-# --------------------------------------------------------------------------------------------
-# Output
-# --------------------------------------------------------------------------------------------
-def build_profile_zip(main, pages):
-    profile_uuid = str(uuid.uuid5(sd.NS, "profile/" + PROFILE_NAME)).upper()
-    default_page = str(uuid.uuid5(sd.NS, "page/default"))
-    base = f"Profiles/{profile_uuid}.sdProfile"
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("package.json", json.dumps({
-            "AppVersion": "7.1.0.0", "DeviceModel": XL_MODEL, "DeviceSettings": None,
-            "FormatVersion": 1, "OSType": "Windows", "OSVersion": "10.0.19045",
-            "RequiredPlugins": ["com.extension.pilotsdeck", "com.elgato.streamdeck.profile.backtoparent",
-                                "com.elgato.streamdeck.profile.openchild"]}))
-        z.writestr(f"{base}/manifest.json", json.dumps({
-            "Device": {"Model": XL_MODEL, "UUID": ""},
-            "Name": PROFILE_NAME,
-            "Pages": {"Current": "00000000-0000-0000-0000-000000000000", "Default": default_page,
-                      "Pages": [main.id]},
-            "Version": "3.0"}))
-        z.writestr(f"{base}/Profiles/{default_page.upper()}/manifest.json",
-                   json.dumps({"Controllers": [{"Actions": None, "Type": "Keypad"}], "Icon": "", "Name": ""}))
-        for p in pages:
-            pdir = f"{base}/Profiles/{p.id.upper()}"
-            z.writestr(f"{pdir}/manifest.json", json.dumps(p.manifest(), ensure_ascii=False))
-            for name, im in p.images.items():
-                b = io.BytesIO()
-                im.save(b, "PNG")
-                z.writestr(f"{pdir}/Images/{name}", b.getvalue())
-    return buf.getvalue()
-
-
 def main():
     main_page, pages = build_pages()
-    profile = build_profile_zip(main_page, pages)
-
-    staging = os.path.join(DIST, "_staging")
-    shutil.rmtree(staging, ignore_errors=True)
-    shutil.copytree(PKG_SRC, staging)
-    images.write_annunciators(os.path.join(staging, "Images", "pmdg737"))
-    os.makedirs(os.path.join(staging, "Profiles"), exist_ok=True)
-    with open(os.path.join(staging, "Profiles", f"{PROFILE_NAME}.streamDeckProfile"), "wb") as f:
-        f.write(profile)
-
-    out = os.path.join(DIST, PACKAGE_NAME)
-    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
-        for root, _, files in os.walk(staging):
-            for fn in sorted(files):
-                full = os.path.join(root, fn)
-                z.write(full, os.path.relpath(full, staging).replace(os.sep, "/"))
-    shutil.copy(os.path.join(staging, "Profiles", f"{PROFILE_NAME}.streamDeckProfile"),
-                os.path.join(DIST, f"{PROFILE_NAME}.streamDeckProfile"))
-    shutil.rmtree(staging)
-
-    total = sum(len(p.actions) for p in pages)
-    print(f"{len(pages)} pages, {total} keys -> {out}")
+    builder.write_package(PROFILE_NAME, PACKAGE_NAME, PKG_SRC, "pmdg737", main_page, pages)
 
 
 if __name__ == "__main__":
